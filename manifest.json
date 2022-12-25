@@ -1,0 +1,52 @@
+{
+    "name": "Crm 365 Helper",
+    "description": "Tool set for Microsoft Dynamics CRM 365",
+    "version": "1.0",
+    "manifest_version": 3,
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": ["activeTab", "scripting", "storage", "nativeMessaging"],
+    "action": {
+        "default_popup": "pages/popup.html",
+        "default_icon": {
+            "16": "/assets/images/16.png",
+            "32": "/assets/images/32.png",
+            "48": "/assets/images/48.png",
+            "128": "/assets/images/128.png"
+        }
+    },
+    "icons": {
+        "16": "/assets/images/16.png",
+        "32": "/assets/images/32.png",
+        "48": "/assets/images/48.png",
+        "128": "/assets/images/128.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [ "http://*/*", "https://*/*" ],
+            "js": [
+                "/app.js"
+            ],
+            "css": [
+                "/assets/fontawesome/css/fontawesome.min.css",
+                "/assets/fontawesome/css/solid.css",
+                "/mdceutility.css"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "matches": [ "http://*/*", "https://*/*" ],
+            "resources": [ 
+                "/mdceutility.js",
+                "/mdceutility.css",
+                "/libs/dateformat.js",
+                "/assets/fontawesome/css/fontawesome.min.css",
+                "/assets/fontawesome/css/solid.css",
+                "/assets/fontawesome/webfonts/*"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <form id="optionsForm">
+      <div class="row" style="display: flex;justify-content: space-between;">
+        Show record info
+        <label class="switch">
+          <input id="isEnabled" name="isEnabled" type="checkbox">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="row">
+        <div>
+          <label>
+            <input id="showOwner" name="showOwner" type="checkbox">
+            Owner
+          </label>
+        </div>
+        <div>
+          <label>
+            <input id="showOverridden" name="showOverridden" type="checkbox">
+            Overridden created on
+          </label>
+        </div>
+      </div>
+    </form>
+    <div>
+      <button id="searchWorkflows">Search workflows</button>
+      <script src="popup.js"></script>
+    </div>
+  </body>
+</html>

@@ -1,12 +1,17 @@
 let tools = {
     userSettings: null,
     toolSettings: null,
+    currentOrgDetails: null,
 
     init: function() {
         document.addEventListener('mdch.settings', e => {
             document.dispatchEvent(new CustomEvent('mdch.internal.settings', { detail: { toolSettings: e.detail, oldSettings: this.toolSettings }} ));
             this.toolSettings = e.detail;
         });
+    },
+
+    isMain: function() {
+        return location.pathname.endsWith('main.aspx');
     },
 
     getEntityReference: function() {
@@ -32,6 +37,40 @@ let tools = {
         return this.toolSettings;
     },
 
+    getCurrentOrgDetails: async function() {
+        if (this.currentOrgDetails == null) {
+            let response = await Xrm.WebApi.online.execute({
+                getMetadata: function () {
+                    return {
+                        boundParameter: null,
+                        parameterTypes: {
+                            "AccessType": { 
+                                typeName: "Microsoft.Dynamics.CRM.EndpointAccessType", 
+                                structuralProperty: 3 ,
+                                enumProperties: [
+                                {
+                                    name: "Default",
+                                    value: 0,
+                                }],                            
+                            }
+                        },
+                        operationType: 1,
+                        operationName: "RetrieveCurrentOrganization",
+                    };
+                },
+                AccessType: 0 //Default
+            });
+
+            if (response.ok) {
+                let responseJson = await response.json();
+                if (responseJson?.Detail) {
+                    this.currentOrgDetails = responseJson?.Detail;
+                }
+            }
+        }
+        return this.currentOrgDetails;
+    },
+
     getCrmUserSettings: async function() {
         if (this.userSettings == null) {
             this.userSettings = {
@@ -41,16 +80,16 @@ let tools = {
                 dateseparator: "-"
             };
 
-            var themes = await Xrm.WebApi.retrieveMultipleRecords('theme', '?$filter=isdefaulttheme eq true&$select=globallinkcolor');
+            let themes = await Xrm.WebApi.retrieveMultipleRecords('theme', '?$filter=isdefaulttheme eq true&$select=globallinkcolor');
             if (!!themes && !!themes.entities && themes.entities.length > 0 && !!themes.entities[0].globallinkcolor) {
                 this.userSettings.color = themes.entities[0].globallinkcolor;
             }
 
-            var userId = Xrm.Utility.getGlobalContext()?.userSettings?.userId;
+            let userId = Xrm.Utility.getGlobalContext()?.userSettings?.userId;
             if (userId) {
-                var usersSettings = await Xrm.WebApi.retrieveMultipleRecords('usersettings', `?$select=timezonecode,dateformatstring,timeformatstring,dateseparator&$filter=systemuserid eq ${userId.replace(/[{|}]/g, '')}`);
+                let usersSettings = await Xrm.WebApi.retrieveMultipleRecords('usersettings', `?$select=timezonecode,dateformatstring,timeformatstring,dateseparator&$filter=systemuserid eq ${userId.replace(/[{|}]/g, '')}`);
                 if (!!usersSettings && !!usersSettings.entities && usersSettings.entities.length > 0) {
-                    var userSettings = usersSettings.entities[0];
+                    let userSettings = usersSettings.entities[0];
                     if (!!userSettings.dateformatstring && !!userSettings.timeformatstring) {
                         this.userSettings.dateFormat = `${userSettings.dateformatstring} ${userSettings.timeformatstring}`;
                     }
@@ -66,6 +105,23 @@ let tools = {
 
         return this.userSettings;
     },
+
+    getVersion: async function() {
+        let details = await this.getCurrentOrgDetails();
+        let matches = details.OrganizationVersion.match(/^(\d+.\d+).\d+.\d+$/);
+        if (matches.length >= 2) {
+            return matches[1];
+        }
+        
+        return null;
+    },
+
+    formatId: id => id.replace(/[{}]/g, ''),
+
+    isOnline: () => 
+        !!window.Xrm &&
+        typeof(Xrm.Page.context.isOnPremises) == 'function' &&
+        !Xrm.Page.context.isOnPremises(),
 }
 
 tools.init();
@@ -109,9 +165,28 @@ let commands = {
         if (!!searchPhrase) {
             Xrm.Utility.showProgressIndicator('Searching workflows...');
             try {
-                let workflows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowid&$filter=contains(xaml,'${searchPhrase}') and parentworkflowid eq null and statecode eq 1 and category ne 2`);
-                let flows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowid&$filter=contains(clientdata,'${searchPhrase}') and category eq 5`);
-                document.dispatchEvent(new CustomEvent('mdch.foundWorkflows', { detail: {workflows: workflows?.entities, flows: flows?.entities} }));
+
+                let workflows = null;
+                let workflowsMessage = null;
+                try {
+                    workflows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowid&$filter=contains(xaml,'${searchPhrase}') and parentworkflowid eq null and statecode eq 1 and category ne 2`);
+                }
+                catch(e) {
+                    workflowsMessage = e.message;
+                    console.error(e);
+                }
+
+                let flows = null;
+                let flowMessage = null;
+                try {
+                    flows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowid&$filter=contains(clientdata,'${searchPhrase}') and category eq 5`);
+                }
+                catch(e) {
+                    flowMessage = e.message;
+                    console.error(e);
+                }
+
+                document.dispatchEvent(new CustomEvent('mdch.foundWorkflows', { detail: { workflows: workflows?.entities, workflowsMessage: workflowsMessage, flows: flows?.entities, flowMessage: flowMessage }}));
             }
             catch(ex) {
                 alert(ex.message)
@@ -138,11 +213,11 @@ let commands = {
             return;
         }
     
-        Xrm.Page.ui.controls.forEach(c => {
+        Xrm.Page.ui.controls.forEach(async c => {
             let controlName = c.getName();
 
             if (!c.getAttribute) {
-                this.internal.addSchemaName(controlName, document.getElementById(`${controlName}_d`, 'insertafter', "/"));
+                await this.internal.addSchemaName(controlName, document.getElementById(`${controlName}_d`, 'insertafterBr'));
             } 
             else {
                 if(!c.getVisible()) {
@@ -155,30 +230,79 @@ let commands = {
                 }
 
                 let attributeName = c.getAttribute().getName();
-                this.internal.addSchemaName(attributeName, controlNode, 'insertafter', "/");
+                await this.internal.addSchemaName(attributeName, controlNode, 'insertafterBr');
             }
         });
     
-        Xrm.Page.ui.tabs.forEach(t => {
+        Xrm.Page.ui.tabs.forEach(async t => {
             if (!t.getVisible()) {
                 return;
             }
 
-            var tabNode = document.querySelector(`li[data-id$="tablist-${t.getName()}"]`);
-            this.internal.addSchemaName(tabName, tabNode.firstElementChild, 'insertbefore', "/");
+            let tabName = t.getName();
+            let tabNode = document.querySelector(`li[data-id$="tablist-${tabName}"]`);
+            await this.internal.addSchemaName(tabName, tabNode.firstElementChild, 'insertbefore', '/');
             
-            t.sections.forEach(s => {
+            t.sections.forEach(async s => {
                 if (!s.getVisible()) {
                     return;
                 }
-                this.internal.addSchemaName(sectionName, document.querySelector(`section[data-id$="${s.getName()}"]`), 'insertbefore');
+                let name = s.getName();
+                await this.internal.addSchemaName(name, document.querySelector(`section[data-id$="${name}"]`), 'insertbefore');
             });
         });
     },
 
+    openRecordInWebapi: async function() {
+        let entityId = Xrm.Page.data.entity.getId();
+        let version = await tools.getVersion();
+
+        if (entityId && version) {
+            let entityName = Xrm.Page.data.entity.getEntityName();
+            let entityDefinition = await Xrm.Utility.getEntityMetadata(entityName, 'EntitySetName');
+            let url = `${Xrm.Page.context.getClientUrl()}/api/data/v${version}/${entityDefinition.EntitySetName}(${tools.formatId(entityId)})`;
+            window.open(url, '_blank');
+        }
+    },
+
+    openSolutions: async function() {
+        if (tools.isOnline()) {
+            let details = await tools.getCurrentOrgDetails();
+            window.open(`https://make.powerapps.com/environments/${details.EnvironmentId}/solutions`, '_blank');
+        }
+    },
+
+    openAdvancedFind: function() {
+        let entityName = Xrm.Page?.data?.entity?.getEntityName();
+        let url = `${Xrm.Page.context.getClientUrl()}/main.aspx?pagetype=advancedfind`;
+        if (!!entityName) {
+            url += `&extraqs=EntityCode%3d${Xrm.Internal.getEntityCode(entityName)}`;
+        }
+
+        window.open(url, '_blank');
+    },
+
+    openRecord: function() {
+        let entityName = prompt("Entity name:");
+        if (!!entityName) {
+            let entityId = prompt("Entity id:");
+            if (!!entityId) {
+                window.open(`${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&id=${entityId}&newWindow=true&pagetype=entityrecord`, '_blank');
+            }
+        }
+    },
+
+    openList: function() {
+        let entityName = prompt("Entity name:");
+        if (!!entityName) {
+            window.open(`${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&pagetype=entitylist`, '_blank');
+        }
+    },
+
     internal: {
-        addSchemaName: function(schemaName, controlNode, insertionType, divider) {
+        addSchemaName: async function(schemaName, controlNode, insertionType, divider) {
             if (controlNode && controlNode.parentNode) {
+                let us = await tools.getCrmUserSettings();
                 let a = document.createElement('a');
                 let aText = document.createTextNode(schemaName);
                 a.appendChild(aText);
@@ -190,6 +314,13 @@ let commands = {
 
                 if(!!!insertionType) {
                     insertionType = 'insertbefore';
+                }
+
+                if(insertionType == 'insertafterBr') {
+                    let br = document.createElement('br');
+                    br.setAttribute('class', 'mdceExtension');
+                    controlNode.parentNode.insertBefore(br, controlNode.nextSibling);
+                    controlNode.parentNode.insertBefore(a, br.nextSibling);
                 }
 
                 if(insertionType == 'insertbefore' || insertionType == 'insertafter') {
@@ -204,13 +335,13 @@ let commands = {
                     controlNode.parentNode.insertBefore(span, a);
                 }
             }
-        }
+        },
     }
 }
 
 let infoBar = {
-    currentId: null,
-    currentEntityName: null,
+    currentId: "00000000-0000-0000-0000-000000000000",
+    currentEntityName: "none",
     enabled: true,
     
     start: async function() {
@@ -228,12 +359,16 @@ let infoBar = {
     refreshingRecordInfo: async function() {
         while (true) {
             try {
+                if (!tools.isMain()) {
+                    continue;
+                }
+
                 if (!window.Xrm) {
                     this.divWrapper.setVisibile(false);
                     continue;
                 }
 
-                var settings = tools.getToolSettings();
+                let settings = tools.getToolSettings();
                 if (settings?.isEnabled !== true) {
                     this.divWrapper.setVisibile(false);
                     continue;
@@ -243,9 +378,8 @@ let infoBar = {
                     this.divWrapper.setVisibile(false);
                     continue;
                 }
-                
-                let { entityId, entityName } = tools.getEntityReference();
 
+                let { entityId, entityName } = tools.getEntityReference();
                 if (this.currentId != entityId || this.currentEntityName != entityName) {
                     this.currentId = entityId;
                     this.currentEntityName = entityName;
@@ -260,62 +394,133 @@ let infoBar = {
                 console.error(e);
             }
             finally {
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
     },
 
-    showRecordInfo: async function(settings) {
-        let us = await tools.getCrmUserSettings();
-
-        let html = ''
+    showRecordInfo: async function() {
+        let html = '';
         if(this.currentId != null) {
-            html += `<a id="recordinfo:showAll" style="color:${us.color};cursor:pointer" href="javascript:void(0)"><i class="fa-solid fa-eye"></i></a>`;
-            html += ` <a id="recordinfo:showSchemaNames" style="color:${us.color};cursor:pointer" href="javascript:void(0)"><i class="fa-solid fa-highlighter"></i></a>`;
-            html += ` <a id="recordinfo:copyid" style="color:${us.color};cursor:pointer" href="javascript:void(0)"><i class="fa-solid fa-copy"></i></a>`;
+            html += await this.createMenuItem('showAll', 'Show All', 'fas fa-eye');
+            html += await this.createMenuItem('showSchemaNames', 'Show Schema Names', 'fas fa-highlighter');
+            html += await this.createMenuItem('copyid', 'Copy Id', 'fas fa-copy');
+            html += await this.createMenuItem('openRecordInWebapi', 'Open Record in WebApi', 'fas fa-globe');
+            html += '<span style="margin:0 15px 0 0">&nbsp;</span>';
         }
-        html += ` <a id="recordinfo:searchWorkflows" style="margin-left:10px;color:${us.color};cursor:pointer" href="javascript:void(0)"><i class="fa-solid fa-magnifying-glass"></i></a>`;
+
+        html += await this.createMenuItem('openAdvancedFind', 'Advanced Find', 'fas fa-filter');
+        html += await this.createMenuItem('openRecord', 'Open Record', 'fas fa-arrow-up-right-from-square');
+        html += await this.createMenuItem('openList', 'Open List', 'fas fa-folder-open');
+
+        if (tools.isOnline()) {
+            html += await this.createMenuItem('openSolutions', 'Solutions', 'fas fa-cubes');
+        }
+        html += await this.createMenuItem('searchWorkflows', 'Search Workflows', 'fas fa-magnifying-glass');
 
         if(this.currentId != null) {
-            let record = await Xrm.WebApi.retrieveRecord(this.currentEntityName, this.currentId);
-
-            let createdOnFormmated = await this.formatDate(record.createdon);
-            let modifiedOnFormmated = await this.formatDate(record.modifiedon);
-            
-            html += ` | <b>Created</b> ${createdOnFormmated} <span style="color:${us.color};font-style: italic;">${record["_createdby_value@OData.Community.Display.V1.FormattedValue"]}</span>`;
-            html += ` | <b>Modified</b> ${modifiedOnFormmated} <span style="color:${us.color};font-style: italic;">${record["_modifiedby_value@OData.Community.Display.V1.FormattedValue"]}</span>`;
-            if (settings?.showOwner == true && record._ownerid_value != null) {
-                html += ` | <b>Owner</b> <span style="color:${us.color};font-style: italic;">${record["_ownerid_value@OData.Community.Display.V1.FormattedValue"]}</span>`;
-            }
-            if (settings?.showOverridden == true && record.overriddencreatedon != null) {
-                let overriddenCreatedOnFormmated = await this.formatDate(record.overriddencreatedon);
-                html += ` | <b>Overridden created on</b> ${overriddenCreatedOnFormmated}`;
-            }
+            html += await this.createRecordInfo();
         }
-        html += ` | <a id="recordinfo:close" style="cursor:pointer;color:black" href="javascript:void(0)"><i class="fa-solid fa-xmark"></i></a>`;
+
+        html += ` | <a id="recordinfo:close" style="margin:0 15px;cursor:pointer;color:rgb(51,51,51)" href="javascript:void(0)"><i class="fas fa-xmark"></i></a>`;
 
         this.divWrapper.setHtml(html.trim());
         this.divWrapper.setVisibile(true);
-        
-        document.querySelector("#recordinfo\\:copyid").addEventListener('click', async () => {
-            await commands.copyId();
-        });
 
-        document.querySelector("#recordinfo\\:close").addEventListener('click', async () => {
-            this.enabled = false;
-        });
 
-        document.querySelector("#recordinfo\\:showAll").addEventListener('click', async () => {
+        this.attachEvent("showAll", true, async () => {
             commands.showAll();
         });
 
-        document.querySelector("#recordinfo\\:showSchemaNames").addEventListener('click', async () => {
-            await commands.showSchemaNames();
+        this.attachEvent("showSchemaNames", true, async () => {
+            commands.showSchemaNames();
         });
 
-        document.querySelector("#recordinfo\\:searchWorkflows").addEventListener('click', async () => {
-            commands.searchWorkflows();
+        this.attachEvent("copyid", true, async () => {
+            await commands.copyId();
         });
+
+        this.attachEvent("openRecordInWebapi", false, async () => {
+            await commands.openRecordInWebapi();
+        });
+
+        this.attachEvent("openAdvancedFind", false, async () => {
+            await commands.openAdvancedFind();
+        });
+
+        this.attachEvent("openRecord", false, async () => {
+            await commands.openRecord();
+        });
+
+        this.attachEvent("openList", false, async () => {
+            await commands.openList();
+        });
+
+        this.attachEvent("openSolutions", false, async () => {
+            await commands.openSolutions();
+        });
+
+        this.attachEvent("searchWorkflows", false, async () => {
+            await commands.searchWorkflows();
+        });
+
+        this.attachEvent("close", false, async () => {
+            this.enabled = false;
+        });
+    },
+
+    attachEvent: async function(id, anymate, eventHandler) {
+        var element = document.querySelector(`#recordinfo\\:${id}`);
+        if (element) {
+            let icon = element.innerHTML;
+
+            element.addEventListener('click', async () => {
+                if(eventHandler.constructor.name === 'AsyncFunction') {
+                    await eventHandler();
+                }
+                else {
+                    eventHandler();
+                }
+                if(anymate) {
+                    element.innerHTML = `<i style="color:green" class="fa-solid fa-circle-check"></i>`;
+                    setTimeout(()=>{
+                        element.innerHTML = icon;
+                    }, 500);
+                }
+            });
+        }
+    },
+
+    createMenuItem: async function(id, title, icon) {
+        let us = await tools.getCrmUserSettings();
+        let style = `color:${us.color};cursor:pointer;margin-right:15px`;
+        return ` <a id='recordinfo:${id}' title='${title}' style='${style}' href='javascript:void(0)'><i class='${icon}'></i></a>`;
+    },
+
+    createRecordInfo: async function() {
+        let record = await Xrm.WebApi.retrieveRecord(this.currentEntityName, this.currentId);
+
+        let createdOnFormmated = await this.formatDate(record.createdon);
+        let modifiedOnFormmated = await this.formatDate(record.modifiedon);
+        
+        let us = await tools.getCrmUserSettings();
+
+        let html = '';
+        html += ` | <span style="margin:0 15px"><b>Created</b> ${createdOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:8px">${record["_createdby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+        html += ` | <span style="margin:0 15px"><b>Modified</b> ${modifiedOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:8px">${record["_modifiedby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+
+        let settings = tools.getToolSettings();
+
+        if (settings?.showOwner == true && record._ownerid_value != null) {
+            html += ` | <span style="margin:0 15px"><b>Owner</b> <span style="color:${us.color};font-style: italic;">${record["_ownerid_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+        }
+
+        if (settings?.showOverridden == true && record.overriddencreatedon != null) {
+            let overriddenCreatedOnFormmated = await this.formatDate(record.overriddencreatedon);
+            html += ` | <span style="margin:0 15px"><b>Overridden created on</b> ${overriddenCreatedOnFormmated}</span>`;
+        }
+
+        return html;
     },
 
     formatDate: async function(dateTimeString) {
@@ -325,7 +530,7 @@ let infoBar = {
 
         let date = (await this.convertToUserDateTime(dateTimeString)) ?? new Date(dateTimeString);
         let us = await tools.getCrmUserSettings();
-        if (us!=null) { 
+        if (us != null) { 
             let formattedDate = date.format(us.dateFormat);
             return formattedDate.replace(/\//g, us.dateseparator);
         }
@@ -368,19 +573,20 @@ let infoBar = {
 
     divWrapper: {
         getDiv: function() {
+
             let div = document.querySelector("#recordinfo");
-        
+
             if (div == null) {
                 div = document.createElement('div');
                 div.setAttribute("id", "recordinfo");
-                div.style.position = "fixed";
-                div.style.bottom = "0";
-                div.style.right = "0";
                 div.style.background = "#FFF";
                 div.style.lineHeight = "40px";
-                div.style.padding = "0 13px";
-                div.style.color = "#000";
+                div.style.padding = "0 20px";
+                div.style.color = "rgb(51,51,51)";
                 div.style.display = 'none';
+                div.style.position = "fixed";
+                div.style.bottom = "0px";
+                div.style.right = "0px";
                 document.body.appendChild(div);
             }
     

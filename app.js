@@ -16,6 +16,12 @@ var app = {
             if(data?.settings) {
                 this.updateSettings(data.settings);
             }
+            else {
+                let settings = {
+                    isEnabled: true
+                };
+                chrome.storage.sync.set({ settings: settings });
+            }
         });
 
         document.addEventListener('mdch.foundWorkflows', async e => {

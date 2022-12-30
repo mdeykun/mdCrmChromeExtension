@@ -30,6 +30,7 @@
             ],
             "css": [
                 "/assets/fontawesome/css/fontawesome.min.css",
+                "/assets/fontawesome/css/regular.css",
                 "/assets/fontawesome/css/solid.css",
                 "/mdceutility.css"
             ],
@@ -44,6 +45,7 @@
                 "/mdceutility.css",
                 "/libs/dateformat.js",
                 "/assets/fontawesome/css/fontawesome.min.css",
+                "/assets/fontawesome/css/regular.css",
                 "/assets/fontawesome/css/solid.css",
                 "/assets/fontawesome/webfonts/*"
             ]

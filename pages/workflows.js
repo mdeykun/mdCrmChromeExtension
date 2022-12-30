@@ -9,7 +9,7 @@ chrome.runtime.sendMessage(
         } 
         else {
             workflowsTable.style.display = 'none';
-            let div = getNothingFoundDiv();
+            let div = getNothingFoundDiv(content?.workflowsMessage);
             workflowsTable.parentNode.insertBefore(div, workflowsTable);
         }
         
@@ -19,15 +19,22 @@ chrome.runtime.sendMessage(
         }
         else {
             flowsTable.style.display = 'none';
-            let div = getNothingFoundDiv();
+            let div = getNothingFoundDiv(content?.flowMessage);
             flowsTable.parentNode.insertBefore(div, flowsTable);
         }
     }
 );
 
-function getNothingFoundDiv() {
+function getNothingFoundDiv(message) {
     let div = document.createElement('div');
-    div.innerHTML = 'Nothing was found';
+    
+    if (!!message) {
+        div.innerHTML = message;
+    }
+    else {
+        div.innerHTML = 'Nothing was found';
+    }
+
     return div;
 }
 

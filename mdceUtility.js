@@ -2,6 +2,7 @@ let tools = {
     userSettings: null,
     toolSettings: null,
     currentOrgDetails: null,
+    defaultSolution: null,
 
     init: function() {
         document.addEventListener('mdch.settings', e => {
@@ -122,6 +123,20 @@ let tools = {
         !!window.Xrm &&
         typeof(Xrm.Page.context.isOnPremises) == 'function' &&
         !Xrm.Page.context.isOnPremises(),
+
+    getDefaultSolution: async function() {
+        if(this.defaultSolution == null) {
+            try {
+                let response = await Xrm.WebApi.retrieveMultipleRecords('solution', `?$select=solutionid&$filter=uniquename eq 'default'`);
+                this.defaultSolution = response.entities[0];
+            }
+            catch(e) {
+                console.error(e);
+            }
+        }
+
+        return this.defaultSolution;
+    },
 }
 
 tools.init();
@@ -179,14 +194,31 @@ let commands = {
                 let flows = null;
                 let flowMessage = null;
                 try {
-                    flows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowid&$filter=contains(clientdata,'${searchPhrase}') and category eq 5`);
+                    flows = await Xrm.WebApi.retrieveMultipleRecords('workflow', `?$select=name,workflowidunique&$filter=contains(clientdata,'${searchPhrase}') and category eq 5`);
                 }
                 catch(e) {
                     flowMessage = e.message;
                     console.error(e);
                 }
 
-                document.dispatchEvent(new CustomEvent('mdch.foundWorkflows', { detail: { workflows: workflows?.entities, workflowsMessage: workflowsMessage, flows: flows?.entities, flowMessage: flowMessage }}));
+                let details = await tools.getCurrentOrgDetails();
+                let defaultSolution = await tools.getDefaultSolution();
+
+                document.dispatchEvent(
+                    new CustomEvent('mdch.foundWorkflows', 
+                    { 
+                        detail: 
+                        {
+                            clientUrl: Xrm.Page.context.getClientUrl(),
+                            environmentId: details?.EnvironmentId,
+                            defaultSolutionId: defaultSolution?.solutionid,
+                            workflows: workflows?.entities, 
+                            workflowsMessage: workflowsMessage, 
+                            flows: flows?.entities, 
+                            flowMessage: flowMessage 
+                        }
+                    })
+                );
             }
             catch(ex) {
                 alert(ex.message)
@@ -422,7 +454,7 @@ let infoBar = {
             html += await this.createRecordInfo();
         }
 
-        html += ` | <a id="recordinfo:close" style="margin:0 15px;cursor:pointer;color:rgb(51,51,51)" href="javascript:void(0)"><i class="fas fa-xmark"></i></a>`;
+        html += ` | <a id="recordinfo:close" style="margin-left:15px;cursor:pointer;color:rgb(51,51,51)" href="javascript:void(0)"><i class="fas fa-xmark"></i></a>`;
 
         this.divWrapper.setHtml(html.trim());
         this.divWrapper.setVisibile(true);

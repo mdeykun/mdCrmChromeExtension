@@ -2,10 +2,16 @@ chrome.runtime.sendMessage(
     {
         title: 'content',
     },
-    (content) => {
+    content => {
         let workflowsTable = document.getElementById('workflows');
         if (content?.workflows?.length > 0) { 
-            content?.workflows?.forEach((row) => insertRow(workflowsTable, row.workflowid, row.name));
+            content?.workflows?.forEach((row) => {
+                let name = !!(content?.clientUrl) ? 
+                    `<a target='_blank' href='${content?.clientUrl}/sfa/workflow/edit.aspx?id=${row.workflowid}'>${row.name}</a>` : 
+                    row.name;
+
+                insertRow(workflowsTable, row.workflowid, name)
+            });
         } 
         else {
             workflowsTable.style.display = 'none';
@@ -15,7 +21,13 @@ chrome.runtime.sendMessage(
         
         let flowsTable = document.getElementById('flows');
         if (content?.flows?.length > 0) {
-            content?.flows?.forEach((row) => insertRow(flowsTable, row.workflowid, row.name));
+            content?.flows?.forEach((row) => {
+                let name = !!(content?.environmentId) && !!(content?.defaultSolutionId) ? 
+                    `<a target='_blank' href='https://make.powerautomate.com/environments/${content?.environmentId}/solutions/${content?.defaultSolutionId}/flows/${row.workflowidunique}/details'>${row.name}</a>` : 
+                    row.name;
+
+                insertRow(flowsTable, row.workflowid, name);
+            });
         }
         else {
             flowsTable.style.display = 'none';

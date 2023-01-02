@@ -1,11 +1,11 @@
-var app = {
+let app = {
     start: async function() {
 
         this.injectScriptFromFile('/libs/dateformat.js');
         this.injectScriptFromFile('mdceutility.js');
 
         chrome.storage.onChanged.addListener(changes => {
-            var settings = changes.settings?.newValue;
+            let settings = changes.settings?.newValue;
             if (settings) {
                 this.updateSettings(settings);
             }

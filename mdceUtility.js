@@ -384,7 +384,7 @@ let infoBar = {
                     this.currentId = entityId;
                     this.currentEntityName = entityName;
 
-                    await this.showRecordInfo(settings);
+                    await this.showRecordInfo();
                 }
 
                 this.divWrapper.setVisibile(true);
@@ -470,7 +470,7 @@ let infoBar = {
     },
 
     attachEvent: async function(id, anymate, eventHandler) {
-        var element = document.querySelector(`#recordinfo\\:${id}`);
+        let element = document.querySelector(`#recordinfo\\:${id}`);
         if (element) {
             let icon = element.innerHTML;
 

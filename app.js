@@ -27,6 +27,10 @@ let app = {
         document.addEventListener('mdch.foundWorkflows', async e => {
             chrome.runtime.sendMessage({ title: "foundWorkflows", content: e.detail });
         });
+
+        document.addEventListener('mdch.subjects', async e => {
+            chrome.runtime.sendMessage({ title: "foundSubjects", content: e.detail });
+        });
     },
 
     updateSettings: function(settings) {

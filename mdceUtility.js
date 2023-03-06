@@ -171,6 +171,43 @@ let commands = {
         });
     },
 
+    showSubjects: async function() {
+        if (!window.Xrm) {
+            return;
+        }
+
+        Xrm.Utility.showProgressIndicator('Retrieving subjects...');
+        try {
+            let subjects = null;
+            let subjectsMessage = null;
+            try {
+                subjects = await Xrm.WebApi.retrieveMultipleRecords('subject', `?$select=subjectid,title,_parentsubject_value`);
+            }
+            catch(e) {
+                subjectsMessage = e.message;
+                console.error(e);
+            }
+
+            document.dispatchEvent(
+                new CustomEvent('mdch.subjects', 
+                { 
+                    detail: 
+                    {
+                        clientUrl: Xrm.Page.context.getClientUrl(),
+                        subjects: subjects?.entities, 
+                        subjectsMessage: subjectsMessage,
+                    }
+                })
+            );
+        }
+        catch(ex) {
+            alert(ex.message)
+        }
+        finally {
+            Xrm.Utility.closeProgressIndicator();
+        }
+    },
+
     searchWorkflows: async function() {
         if (!window.Xrm) {
             return;

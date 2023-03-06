@@ -1,1 +1,9 @@
 Allow hiding of record info. Show only tools.
+UTC dates
+Show audit history + transaction info
+Show fields
+Update version notification:
+    http://clients2.google.com/service/update2/crx?response=redirect&x=id%3D%3CEXTENSION_ID_HERE%3E%26uc%26lang%3Den-US&prod=chrome
+
+Adding commands request
+Upload to edge store

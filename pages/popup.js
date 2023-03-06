@@ -29,5 +29,9 @@
     this.executeFunction("searchWorkflows", function() {
         commands.searchWorkflows();
     });
+
+    this.executeFunction("showSubjects", function() {
+        commands.showSubjects();
+    });
     
 }).call();

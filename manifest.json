@@ -1,12 +1,13 @@
 {
     "name": "Crm 365 Helper",
     "description": "Tool set for Microsoft Dynamics CRM 365",
-    "version": "1.0.0.3",
+    "version": "1.0.0.8",
     "manifest_version": 3,
+    "incognito": "split",
     "background": {
         "service_worker": "background.js"
     },
-    "permissions": ["activeTab", "scripting", "storage", "nativeMessaging"],
+    "permissions": ["activeTab", "scripting", "storage"],
     "action": {
         "default_popup": "pages/popup.html",
         "default_icon": {

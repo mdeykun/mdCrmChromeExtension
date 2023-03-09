@@ -354,7 +354,19 @@ let commands = {
     openRecord: function() {
         let entityName = prompt("Entity name:");
         if (!!entityName) {
-            let entityId = prompt("Entity id:");
+            let entityId = null;
+
+            if(entityName.trim().indexOf(',') >= 0) {
+                let parts = entityName.split(',');
+                if(parts.length == 2) {
+                    entityName = parts[0];
+                    entityId = parts[1];
+                }
+            }
+            else {
+                entityId = prompt("Entity id:");
+            }
+
             if (!!entityId) {
                 window.open(`${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&id=${entityId}&newWindow=true&pagetype=entityrecord`, '_blank');
             }

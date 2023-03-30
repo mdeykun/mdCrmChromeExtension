@@ -16,17 +16,23 @@ let tools = {
     },
 
     getEntityReference: function() {
-        let entityIdMatch = location.search.match(/[&?]id=([^&]+)/);
-        let entityNameMatch = location.search.match(/etn=([^&]+)/);
+        let entityId = this.getEntityId();
+        let entityName = this.getEntityName();
 
-        if (entityIdMatch != null && entityNameMatch != null) {    
-            let entityId = entityIdMatch[1];
-            let entityName = entityNameMatch[1];
+        return { entityId: entityId, entityName: entityName };
+    },
 
-            return { entityId: entityId, entityName: entityName };
-        }
+    getEntityName: function() {
+        return this.getLocationPart(/etn=([^&]+)/);
+    },
 
-        return { entityId: null, entityName: null };
+    getEntityId: function() {
+        return this.getLocationPart(/[&?]id=([^&]+)/);
+    },
+
+    getLocationPart: function(regex) {
+        let match = location.search.match(regex);
+        return match != null ? match[1] : null;
     },
 
     getToolSettings: function() {
@@ -73,13 +79,21 @@ let tools = {
     },
 
     getCrmUserSettings: async function() {
+        if(!window.Xrm) {
+            return null;
+        };
+
         if (this.userSettings == null) {
             this.userSettings = {
                 color: "#0078D4",
                 dateFormat: "yyyy/MM/dd h:mm:ss tt",
                 timeZoneCode: null, 
-                dateseparator: "-"
+                dateseparator: "-",
+                isRtl: true,
             };
+
+            let isRtl = Xrm.Utility?.getGlobalContext()?.userSettings?.isRTL;
+            this.userSettings.isRtl = isRtl ?? false;
 
             let themes = await Xrm.WebApi.retrieveMultipleRecords('theme', '?$filter=isdefaulttheme eq true&$select=globallinkcolor');
             if (!!themes && !!themes.entities && themes.entities.length > 0 && !!themes.entities[0].globallinkcolor) {
@@ -323,13 +337,13 @@ let commands = {
     },
 
     openRecordInWebapi: async function() {
-        let entityId = Xrm.Page.data.entity.getId();
         let version = await tools.getVersion();
+        let { entityId, entityName } = tools.getEntityReference();
 
-        if (entityId && version) {
-            let entityName = Xrm.Page.data.entity.getEntityName();
+        if (entityName != null && !!version) {
             let entityDefinition = await Xrm.Utility.getEntityMetadata(entityName, 'EntitySetName');
-            let url = `${Xrm.Page.context.getClientUrl()}/api/data/v${version}/${entityDefinition.EntitySetName}(${tools.formatId(entityId)})`;
+            let url = `${Xrm.Page.context.getClientUrl()}/api/data/v${version}/${entityDefinition.EntitySetName}`;
+            url += entityId != null ? `(${tools.formatId(entityId)})` : `?$top=250`;
             window.open(url, '_blank');
         }
     },
@@ -342,7 +356,7 @@ let commands = {
     },
 
     openAdvancedFind: function() {
-        let entityName = Xrm.Page?.data?.entity?.getEntityName();
+        let entityName = tools.getEntityName();
         let url = `${Xrm.Page.context.getClientUrl()}/main.aspx?pagetype=advancedfind`;
         if (!!entityName) {
             url += `&extraqs=EntityCode%3d${Xrm.Internal.getEntityCode(entityName)}`;
@@ -424,6 +438,7 @@ let infoBar = {
     currentId: "00000000-0000-0000-0000-000000000000",
     currentEntityName: "none",
     enabled: true,
+    divider: '<span style="margin:0 7px 0 7px">|</span>',
     
     start: async function() {
         document.addEventListener('mdch.internal.settings', e => {
@@ -444,19 +459,11 @@ let infoBar = {
                     continue;
                 }
 
-                if (!window.Xrm) {
-                    this.divWrapper.setVisibile(false);
-                    continue;
-                }
-
                 let settings = tools.getToolSettings();
-                if (settings?.isEnabled !== true) {
-                    this.divWrapper.setVisibile(false);
-                    continue;
-                }
+                let us = await tools.getCrmUserSettings();
 
-                if (this.enabled !== true) {
-                    this.divWrapper.setVisibile(false);
+                if (!window.Xrm || settings?.isEnabled !== true || this.enabled !== true || us == null) {
+                    await this.divWrapper.setVisibile(false);
                     continue;
                 }
 
@@ -468,10 +475,10 @@ let infoBar = {
                     await this.showRecordInfo();
                 }
 
-                this.divWrapper.setVisibile(true);
+                await this.divWrapper.setVisibile(true);
             }
             catch(e) {
-                this.divWrapper.setVisibile(false);
+                await this.divWrapper.setVisibile(false);
                 console.error(e);
             }
             finally {
@@ -482,31 +489,34 @@ let infoBar = {
 
     showRecordInfo: async function() {
         let html = '';
-        if(this.currentId != null) {
+        if (this.currentId != null) {
             html += await this.createMenuItem('showAll', 'Show All', 'fas fa-eye');
             html += await this.createMenuItem('showSchemaNames', 'Show Schema Names', 'fas fa-highlighter');
             html += await this.createMenuItem('copyid', 'Copy Id', 'fas fa-copy');
-            html += await this.createMenuItem('openRecordInWebapi', 'Open Record in WebApi', 'fas fa-globe');
-            html += '<span style="margin:0 15px 0 0">&nbsp;</span>';
+            html += '<span style="margin:0 8px 0 8px">&nbsp;</span>';
         }
 
         html += await this.createMenuItem('openAdvancedFind', 'Advanced Find', 'fas fa-filter');
         html += await this.createMenuItem('openRecord', 'Open Record', 'fas fa-arrow-up-right-from-square');
         html += await this.createMenuItem('openList', 'Open List', 'fas fa-folder-open');
 
+        if (this.currentId != null || this.currentEntityName != null) {
+            html += await this.createMenuItem('openRecordInWebapi', 'Open in WebApi', 'fas fa-globe');
+        }
+
         if (tools.isOnline()) {
             html += await this.createMenuItem('openSolutions', 'Solutions', 'fas fa-cubes');
         }
-        html += await this.createMenuItem('searchWorkflows', 'Search Workflows', 'fas fa-magnifying-glass');
+        //html += await this.createMenuItem('searchWorkflows', 'Search Workflows', 'fas fa-magnifying-glass');
 
-        if(this.currentId != null) {
+        if (this.currentId != null) {
             html += await this.createRecordInfo();
         }
 
-        html += ` | <a id="recordinfo:close" style="margin-left:15px;cursor:pointer;color:rgb(51,51,51)" href="javascript:void(0)"><i class="fas fa-xmark"></i></a>`;
+        html += `${this.divider}<a id="recordinfo:close" style="margin: 0 7px;cursor:pointer;color:rgb(51,51,51)" href="javascript:void(0)"><i class="fas fa-xmark"></i></a>`;
 
-        this.divWrapper.setHtml(html.trim());
-        this.divWrapper.setVisibile(true);
+        await this.divWrapper.setHtml(html.trim());
+        await this.divWrapper.setVisibile(true);
 
 
         this.attachEvent("showAll", true, async () => {
@@ -541,9 +551,9 @@ let infoBar = {
             await commands.openSolutions();
         });
 
-        this.attachEvent("searchWorkflows", false, async () => {
-            await commands.searchWorkflows();
-        });
+        //this.attachEvent("searchWorkflows", false, async () => {
+        //    await commands.searchWorkflows();
+        //});
 
         this.attachEvent("close", false, async () => {
             this.enabled = false;
@@ -574,7 +584,7 @@ let infoBar = {
 
     createMenuItem: async function(id, title, icon) {
         let us = await tools.getCrmUserSettings();
-        let style = `color:${us.color};cursor:pointer;margin-right:15px`;
+        let style = `color:${us.color};cursor:pointer;margin:0 7px;`;
         return ` <a id='recordinfo:${id}' title='${title}' style='${style}' href='javascript:void(0)'><i class='${icon}'></i></a>`;
     },
 
@@ -587,18 +597,18 @@ let infoBar = {
         let us = await tools.getCrmUserSettings();
 
         let html = '';
-        html += ` | <span style="margin:0 15px"><b>Created</b> ${createdOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:8px">${record["_createdby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
-        html += ` | <span style="margin:0 15px"><b>Modified</b> ${modifiedOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:8px">${record["_modifiedby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+        html += `${this.divider}<span style="margin:0 7px"><b>Created</b> ${createdOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:7px">${record["_createdby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+        html += `${this.divider}<span style="margin:0 7px"><b>Modified</b> ${modifiedOnFormmated} <span style="color:${us.color};font-style: italic;margin-left:7px">${record["_modifiedby_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
 
         let settings = tools.getToolSettings();
 
         if (settings?.showOwner == true && record._ownerid_value != null) {
-            html += ` | <span style="margin:0 15px"><b>Owner</b> <span style="color:${us.color};font-style: italic;">${record["_ownerid_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
+            html += `${this.divider}<span style="margin:0 7px"><b>Owner</b> <span style="color:${us.color};font-style: italic;">${record["_ownerid_value@OData.Community.Display.V1.FormattedValue"]}</span></span>`;
         }
 
         if (settings?.showOverridden == true && record.overriddencreatedon != null) {
             let overriddenCreatedOnFormmated = await this.formatDate(record.overriddencreatedon);
-            html += ` | <span style="margin:0 15px"><b>Overridden created on</b> ${overriddenCreatedOnFormmated}</span>`;
+            html += `${this.divider}<span style="margin:0 7px"><b>Overridden created on</b> ${overriddenCreatedOnFormmated}</span>`;
         }
 
         return html;
@@ -653,33 +663,48 @@ let infoBar = {
     },
 
     divWrapper: {
-        getDiv: function() {
+        getDivElement: function() {
+            return document.querySelector("#recordinfo");
+        },
 
-            let div = document.querySelector("#recordinfo");
-
+        getDiv: async function() {
+            let div = this.getDivElement();
+            let us = await tools.getCrmUserSettings();
             if (div == null) {
                 div = document.createElement('div');
                 div.setAttribute("id", "recordinfo");
                 div.style.background = "#FFF";
                 div.style.lineHeight = "40px";
-                div.style.padding = "0 20px";
+                div.style.padding = "0 14px";
                 div.style.color = "rgb(51,51,51)";
                 div.style.display = 'none';
                 div.style.position = "fixed";
                 div.style.bottom = "0px";
-                div.style.right = "0px";
+                div.style.direction = us.isRtl === true ? "rtl" : "ltr";
+                if(us.isRtl === true) {
+                    div.style.left = "0px";
+                }
+                else {
+                    div.style.right = "0px";
+                }
+
                 document.body.appendChild(div);
             }
     
             return div;
         },
     
-        setVisibile: function(isVisible) {
-            this.getDiv().style.display = isVisible !== true ? 'none' : '';
+        setVisibile: async function(isVisible) {
+            let div = this.getDivElement();
+            if (div == null && isVisible !== true) {
+                return;
+            }
+
+            (await this.getDiv()).style.display = isVisible !== true ? 'none' : '';
         },
     
-        setHtml: function(html) {
-            this.getDiv().innerHTML = html;
+        setHtml: async function(html) {
+            (await this.getDiv()).innerHTML = html;
         }
     },
 };

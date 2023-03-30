@@ -6,8 +6,11 @@
             let data = await chrome.storage.sync.get("settings");
             let settings = !!data?.settings ? data.settings : {};
             settings[event.target.name] = event.target.checked;
-
             chrome.storage.sync.set({ settings: settings });
+
+            //if(event.target.name == "showRecordInfo" && event.target.checked == false) {
+            //    
+            //}
         });
 
         cb.checked = !!data?.settings && data.settings[cb.name] === true;

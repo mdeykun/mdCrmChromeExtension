@@ -467,15 +467,23 @@ let infoBar = {
                     continue;
                 }
 
+                if(this.divWrapper.isVisible == false) {
+                    await this.showRecordInfo();
+                    await this.divWrapper.setVisibile(true);
+
+                    continue;
+                }
+
                 let { entityId, entityName } = tools.getEntityReference();
                 if (this.currentId != entityId || this.currentEntityName != entityName) {
                     this.currentId = entityId;
                     this.currentEntityName = entityName;
 
                     await this.showRecordInfo();
-                }
+                    await this.divWrapper.setVisibile(true);
 
-                await this.divWrapper.setVisibile(true);
+                    continue;
+                }
             }
             catch(e) {
                 await this.divWrapper.setVisibile(false);
@@ -489,7 +497,7 @@ let infoBar = {
 
     showRecordInfo: async function() {
         let html = '';
-        if (this.currentId != null) {
+        if (this.currentId != null && this.currentEntityName != null) {
             html += await this.createMenuItem('showAll', 'Show All', 'fas fa-eye');
             html += await this.createMenuItem('showSchemaNames', 'Show Schema Names', 'fas fa-highlighter');
             html += await this.createMenuItem('copyid', 'Copy Id', 'fas fa-copy');
@@ -507,9 +515,11 @@ let infoBar = {
         if (tools.isOnline()) {
             html += await this.createMenuItem('openSolutions', 'Solutions', 'fas fa-cubes');
         }
+
         //html += await this.createMenuItem('searchWorkflows', 'Search Workflows', 'fas fa-magnifying-glass');
 
-        if (this.currentId != null) {
+        let settings = tools.getToolSettings();
+        if (this.currentId != null && this.currentEntityName != null && settings?.showRecordInfo == true) {
             html += await this.createRecordInfo();
         }
 
@@ -517,7 +527,6 @@ let infoBar = {
 
         await this.divWrapper.setHtml(html.trim());
         await this.divWrapper.setVisibile(true);
-
 
         this.attachEvent("showAll", true, async () => {
             commands.showAll();
@@ -663,6 +672,8 @@ let infoBar = {
     },
 
     divWrapper: {
+        isVisible: false,
+
         getDivElement: function() {
             return document.querySelector("#recordinfo");
         },
@@ -674,12 +685,13 @@ let infoBar = {
                 div = document.createElement('div');
                 div.setAttribute("id", "recordinfo");
                 div.style.background = "#FFF";
+                div.style.border = '1px solid rgb(237, 235, 233)';
                 div.style.lineHeight = "40px";
                 div.style.padding = "0 14px";
                 div.style.color = "rgb(51,51,51)";
                 div.style.display = 'none';
                 div.style.position = "fixed";
-                div.style.bottom = "0px";
+                div.style.bottom = "0px"; 
                 div.style.direction = us.isRtl === true ? "rtl" : "ltr";
                 if(us.isRtl === true) {
                     div.style.left = "0px";
@@ -695,6 +707,8 @@ let infoBar = {
         },
     
         setVisibile: async function(isVisible) {
+            this.isVisible = isVisible;
+
             let div = this.getDivElement();
             if (div == null && isVisible !== true) {
                 return;

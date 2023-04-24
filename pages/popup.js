@@ -36,5 +36,13 @@
     this.executeFunction("showSubjects", function() {
         commands.showSubjects();
     });
-    
+
+    var submitIssueA = document.getElementById('submitIssue');
+    submitIssueA.addEventListener("click", function() {
+        chrome.tabs.create({
+            url: 'https://github.com/mdeykun/mdCrmChromeExtension/issues'//$(this).attr('href')
+        });
+        return false;
+    });
+
 }).call();

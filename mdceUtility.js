@@ -15,19 +15,25 @@ let tools = {
         return location.pathname.endsWith('main.aspx');
     },
 
-    getEntityReference: function() {
-        let entityId = this.getEntityId();
-        let entityName = this.getEntityName();
+    getUrlInfo: function() {
+        let entityId = this.getLocationPart(/[&?]id=([^&]+)/i);
+        let entityName = this.getLocationPart(/etn=([^&]+)/i);
+        let pageType = this.getLocationPart(/pagetype=([^&]+)/i);
+        let appId = this.getLocationPart(/appid=([^&]+)/i);
 
-        return { entityId: entityId, entityName: entityName };
+        return { entityId: entityId, entityName: entityName, pageType: pageType, appId: appId };
     },
 
     getEntityName: function() {
-        return this.getLocationPart(/etn=([^&]+)/);
+        return this.getLocationPart(/etn=([^&]+)/i);
+    },
+
+    getAppId: function() {
+        return this.getLocationPart(/appid=([^&]+)/i);
     },
 
     getEntityId: function() {
-        return this.getLocationPart(/[&?]id=([^&]+)/);
+        return this.getLocationPart(/[&?]id=([^&]+)/i);
     },
 
     getLocationPart: function(regex) {
@@ -281,7 +287,7 @@ let commands = {
     },
 
     copyId: async function() {
-        let { entityId, entityName } = tools.getEntityReference();
+        let { entityId, entityName } = tools.getUrlInfo();
         await navigator.clipboard.writeText(entityId);
     },
 
@@ -338,7 +344,7 @@ let commands = {
 
     openRecordInWebapi: async function() {
         let version = await tools.getVersion();
-        let { entityId, entityName } = tools.getEntityReference();
+        let { entityId, entityName } = tools.getUrlInfo();
 
         if (entityName != null && !!version) {
             let entityDefinition = await Xrm.Utility.getEntityMetadata(entityName, 'EntitySetName');
@@ -382,7 +388,14 @@ let commands = {
             }
 
             if (!!entityId) {
-                window.open(`${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&id=${entityId}&newWindow=true&pagetype=entityrecord`, '_blank');
+                let url = `${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&id=${entityId}&pagetype=entityrecord`;
+
+                let appId = tools.getAppId();
+                if(!!appId) {
+                    url += `&appid=${appId}`;
+                }
+
+                window.open(url, '_blank');
             }
         }
     },
@@ -390,7 +403,14 @@ let commands = {
     openList: function() {
         let entityName = prompt("Entity name:");
         if (!!entityName) {
-            window.open(`${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&pagetype=entitylist`, '_blank');
+            let url = `${Xrm.Page.context.getClientUrl()}/main.aspx?etn=${entityName}&pagetype=entitylist`;
+
+            let appId = tools.getAppId();
+            if(!!appId) {
+                url += `&appid=${appId}`;
+            }
+
+            window.open(url, '_blank');
         }
     },
 
@@ -437,6 +457,8 @@ let commands = {
 let infoBar = {
     currentId: "00000000-0000-0000-0000-000000000000",
     currentEntityName: "none",
+    pageType: null,
+    entityId: null,
     enabled: true,
     divider: '<span style="margin:0 7px 0 7px">|</span>',
     
@@ -474,10 +496,15 @@ let infoBar = {
                     continue;
                 }
 
-                let { entityId, entityName } = tools.getEntityReference();
-                if (this.currentId != entityId || this.currentEntityName != entityName) {
+                let { entityId, entityName, pageType, appId } = tools.getUrlInfo();
+                if (this.currentId != entityId || 
+                    this.currentEntityName != entityName || 
+                    this.pageType != pageType) {
+
                     this.currentId = entityId;
                     this.currentEntityName = entityName;
+                    this.pageType = pageType;
+                    this.appId = appId;
 
                     await this.showRecordInfo();
                     await this.divWrapper.setVisibile(true);
@@ -497,10 +524,14 @@ let infoBar = {
 
     showRecordInfo: async function() {
         let html = '';
-        if (this.currentId != null && this.currentEntityName != null) {
+        if (this.pageType == 'entityrecord') {
             html += await this.createMenuItem('showAll', 'Show All', 'fas fa-eye');
             html += await this.createMenuItem('showSchemaNames', 'Show Schema Names', 'fas fa-highlighter');
-            html += await this.createMenuItem('copyid', 'Copy Id', 'fas fa-copy');
+
+            if(this.currentId != null) {
+                html += await this.createMenuItem('copyid', 'Copy Id', 'fas fa-copy');
+            }
+
             html += '<span style="margin:0 8px 0 8px">&nbsp;</span>';
         }
 

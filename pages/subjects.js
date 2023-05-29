@@ -73,7 +73,7 @@ function displaySubject(container, level, subject, subjects, showGuids, searchVa
     p.appendChild(getA(subject.title, null, searchValue));
     if (showGuids) {
         p.appendChild(document.createTextNode(' / '));
-        p.appendChild(getA(subject.subjectid, "silver", searchValue));
+        p.appendChild(getA(subject.subjectid, "gray", searchValue));
     }
 
     let levelSubjects = subjects.filter(x => x._parentsubject_value == subject.subjectid);

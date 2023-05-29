@@ -269,6 +269,7 @@ let commands = {
                         {
                             searchPhrase: searchPhrase,
                             clientUrl: Xrm.Page.context.getClientUrl(),
+                            version: await tools.getVersion(),
                             environmentId: details?.EnvironmentId,
                             defaultSolutionId: defaultSolution?.solutionid,
                             workflows: workflows?.entities, 

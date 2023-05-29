@@ -19,7 +19,9 @@ chrome.runtime.sendMessage(
                     `<a target='_blank' href='${content?.clientUrl}/sfa/workflow/edit.aspx?id=${row.workflowid}'>${row.name}</a>` : 
                     row.name;
 
-                insertRow(workflowsTable, row.workflowid, name);
+                let webApiUrl = `<a target='_blank' title='Open in web api' href='${content?.clientUrl}/api/data/v${content?.version}/workflows(${row.workflowid})'><i class='fas fa-globe'></i></a>`;
+                let idUrl = `<a class='copy-id' data-workflowid='${row.workflowid}' href='#'>${row.workflowid}</a>`;
+                insertRow(workflowsTable, webApiUrl, idUrl, name);
             });
         } 
         else {
@@ -35,7 +37,9 @@ chrome.runtime.sendMessage(
                     `<a target='_blank' href='https://make.powerautomate.com/environments/${content?.environmentId}/solutions/${content?.defaultSolutionId}/flows/${row.workflowidunique}/details'>${row.name}</a>` : 
                     row.name;
 
-                insertRow(flowsTable, row.workflowid, name);
+                let webApiUrl = `<a target='_blank' title='Open in web api' href='${content?.clientUrl}/api/data/v${content?.version}/workflows(${row.workflowid})'><i class='fas fa-globe'></i></a>`;
+                let idUrl = `<a class='copy-id' data-workflowid='${row.workflowid}' href='#'>${row.workflowid}</a>`;
+                insertRow(flowsTable, webApiUrl, idUrl, name);
             });
         }
         else {
@@ -43,8 +47,18 @@ chrome.runtime.sendMessage(
             let div = getNothingFoundDiv(content?.flowMessage);
             flowsTable.parentNode.insertBefore(div, flowsTable);
         }
+
+        const copyLinks = document.getElementsByClassName("copy-id");
+        for (let i = 0; i < copyLinks.length; i++) {
+            let copyLink = copyLinks[i];
+            copyLink.onclick = async function(e) {
+                await navigator.clipboard.writeText(copyLink.dataset.workflowid);
+            };
+        }
     }
 );
+
+//onclick='async function(e) { await navigator.clipboard.writeText("${row.workflowid}"); return false; }'
 
 function getNothingFoundDiv(message) {
     let div = document.createElement('div');

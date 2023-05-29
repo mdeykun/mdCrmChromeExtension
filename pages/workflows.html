@@ -4,27 +4,39 @@
     <style>
         th, td{
             text-align: left;
+            padding-right: 20px;
+        }
+        .copy-id {
+            color: gray;
+            text-decoration: none;
+        }
+        .searchPhrase {
+            font-size: 1.5em;
+            color:gray;
         }
     </style>   
+    <link type="text/css" rel="stylesheet" href="/assets/fontawesome/css/fontawesome.min.css">
+    <link type="text/css" rel="stylesheet" href="/assets/fontawesome/css/regular.css">
+    <link type="text/css" rel="stylesheet" href="/assets/fontawesome/css/solid.css">
 </head>
 <body>
 
     <div>
-        <h2>Search Phrase:</h2>
-        <p id="searchPhrase" style="font-size: 1.5em;"></p>
+        <h2>Search Phrase</h2>
+        <p id="searchPhrase" class="searchPhrase"></p>
     </div>
 
     <h2>Workflows</h2>
     <div>
         <table id="workflows">
-            <tr><th>id</th><th>name</th><tr>
+            <tr><th></th><th>id</th><th>name</th><tr>
         </table>
     </div>
 
     <h2>Flows</h2>
     <div>
         <table id="flows">
-            <tr><th>id</th><th>name</th><tr>
+            <tr><th></th><th>id</th><th>name</th><tr>
         </table>
     </div>
 

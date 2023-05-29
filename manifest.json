@@ -1,7 +1,7 @@
 {
     "name": "Crm 365 Helper",
     "description": "Tool set for Microsoft Dynamics CRM 365",
-    "version": "1.0.0.15",
+    "version": "1.0.0.16",
     "manifest_version": 3,
     "incognito": "split",
     "background": {

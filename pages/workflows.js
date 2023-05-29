@@ -3,6 +3,15 @@ chrome.runtime.sendMessage(
         title: 'content',
     },
     content => {
+        
+        let searchPhraseContainer = document.getElementById('searchPhrase');
+        if(!!content?.searchPhrase) {
+            searchPhraseContainer.innerHTML = content.searchPhrase;
+        }
+        else {
+            searchPhraseContainer.innerHTML = 'Something went wrong. Search Phrase is not defined';
+        }
+
         let workflowsTable = document.getElementById('workflows');
         if (content?.workflows?.length > 0) { 
             content?.workflows?.forEach((row) => {
@@ -10,7 +19,7 @@ chrome.runtime.sendMessage(
                     `<a target='_blank' href='${content?.clientUrl}/sfa/workflow/edit.aspx?id=${row.workflowid}'>${row.name}</a>` : 
                     row.name;
 
-                insertRow(workflowsTable, row.workflowid, name)
+                insertRow(workflowsTable, row.workflowid, name);
             });
         } 
         else {

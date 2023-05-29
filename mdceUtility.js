@@ -235,9 +235,9 @@ let commands = {
 
         let searchPhrase = prompt("Workflows/Flows search. Enter text (entity name, field name, field value) or entity id (without {}):");
         if (!!searchPhrase) {
-            Xrm.Utility.showProgressIndicator('Searching workflows...');
             try {
 
+                Xrm.Utility.showProgressIndicator('Searching workflows...');
                 let workflows = null;
                 let workflowsMessage = null;
                 try {
@@ -248,6 +248,7 @@ let commands = {
                     console.error(e);
                 }
 
+                Xrm.Utility.showProgressIndicator('Searching flows...');
                 let flows = null;
                 let flowMessage = null;
                 try {
@@ -266,6 +267,7 @@ let commands = {
                     { 
                         detail: 
                         {
+                            searchPhrase: searchPhrase,
                             clientUrl: Xrm.Page.context.getClientUrl(),
                             environmentId: details?.EnvironmentId,
                             defaultSolutionId: defaultSolution?.solutionid,

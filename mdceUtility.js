@@ -658,16 +658,27 @@ let infoBar = {
     },
 
     formatDate: async function(dateTimeString) {
-        if (!!!dateTimeString) {
-            return null;
-        }
+        try{
+            if (!!!dateTimeString) {
+                return null;
+            }
 
-        let date = (await this.convertToUserDateTime(dateTimeString)) ?? new Date(dateTimeString);
-        let us = await tools.getCrmUserSettings();
-        if (us != null) { 
-            let formattedDate = date.format(us.dateFormat);
+            let dateFormat = "yyyy-MM-dd HH:mm:ss";
+
+            let date = (await this.convertToUserDateTime(dateTimeString)) ?? new Date(dateTimeString);
+            let us = await tools.getCrmUserSettings();
+            if (us != null) { 
+                dateFormat = us.dateFormat;
+            }
+
+            let formattedDate = date.format_mdcrmchrome_ext(us.dateFormat);
             return formattedDate.replace(/\//g, us.dateseparator);
         }
+        catch(e) {
+            console.error(e);
+        }
+
+        return dateTimeString;
     },
 
     convertToUserDateTime: async function(isoDateString) {
